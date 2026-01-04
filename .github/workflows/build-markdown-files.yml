@@ -12,12 +12,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # Cache step for debian packages
+      - name: Cache packages
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.pkg
+          key: ${{ runner.os }}-debian-packages-${{ hashFiles('**/*.md') }}
+          restore-keys: |
+            ${{ runner.os }}-debian-packages-
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y default-jdk pandoc texlive
-          wget https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
-          sudo apt-get install -y imagemagick
+          sudo apt-get install -y default-jdk pandoc texlive imagemagick
 
       - name: Find changed .md files, excluding README.md
         id: find_md_files
