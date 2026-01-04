@@ -14,7 +14,7 @@ jobs:
 
       # Cache step for debian packages
       - name: Cache packages
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: /tmp/.pkg
           key: ${{ runner.os }}-debian-packages-${{ hashFiles('**/*.md') }}
