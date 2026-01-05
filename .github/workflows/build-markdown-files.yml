@@ -29,7 +29,10 @@ jobs:
       - name: Find changed .md files, excluding README.md
         id: find_md_files
         run: |
-          echo "##[set-output name=files;]$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.md' | grep -v 'README.md' || true)"
+            BEFORE=${{ github.event.before }}
+            [ -z "$BEFORE" ] && BEFORE="origin/${{ github.base_ref }}"
+            files=$(git diff --name-only "$BEFORE" ${{ github.sha }} | grep '\.md' | grep -v 'README.md' || true)
+            echo "files=$files" >> $GITHUB_OUTPUT
 
       - name: Generate diagrams from PlantUML
         if: steps.find_md_files.outputs.files != ''
@@ -73,6 +76,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add *.pdf *.html
+          git add *.pdf *.html 2>/dev/null || true
           git commit -m "Generate HTML and PDF for updated Markdown files" || echo "No changes to commit"
           git push
