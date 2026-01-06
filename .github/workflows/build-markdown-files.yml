@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize, reopened, edited]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-markdown-pdfs:
@@ -56,3 +56,38 @@ jobs:
             pandoc "$f" -o "$out"
             echo "Built $out"
           done <<< "$files"
+
+      - name: Commit and push generated PDFs
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        env:
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.files }}"
+          pdfs=()
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            pdfs+=("${f%.md}.pdf")
+          done <<< "$files"
+          if [ ${#pdfs[@]} -eq 0 ]; then
+            echo "No PDFs to commit"
+            exit 0
+          fi
+          git --version
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Add generated PDFs
+          git add -- "${pdfs[@]}"
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Build: add generated PDFs for changed Markdown files"
+          # Push back to the PR branch
+          if [ -n "${GITHUB_HEAD_REF:-}" ]; then
+            git push origin HEAD:refs/heads/${GITHUB_HEAD_REF}
+          else
+            git push origin HEAD
+          fi
