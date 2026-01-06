@@ -91,7 +91,7 @@ jobs:
             mv "$tmp" "${f}.processed.md"
             pandoc "${f}.processed.md" -o "${f%.md}.pdf"
             echo "Built ${f%.md}.pdf"
-          done <<< "$files"
+          done < <(printf '%s\n' "$files")
 
       - name: Commit and push generated PDFs
         if: steps.changed.outputs.files != ''
