@@ -34,13 +34,19 @@ jobs:
           printf "%s\n" "$files" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Install Pandoc and TeX (for PDF output)
+      - name: Install dependencies (Pandoc, TeX, Java, Graphviz)
         if: steps.changed.outputs.files != ''
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended
+          sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
 
-      - name: Convert changed Markdown files to PDF
+      - name: Download PlantUML
+        if: steps.changed.outputs.files != ''
+        run: |
+          curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+
+
+      - name: Pre-render PlantUML and convert changed Markdown files to PDF
         if: steps.changed.outputs.files != ''
         shell: bash
         run: |
@@ -52,9 +58,39 @@ jobs:
           fi
           while IFS= read -r f; do
             [ -z "$f" ] && continue
-            out="${f%.md}.pdf"
-            pandoc "$f" -o "$out"
-            echo "Built $out"
+            dir=$(dirname "$f")
+            base=$(basename "$f" .md)
+            tmp=$(mktemp)
+            cnt=0
+            inside=0
+            umlfile=""
+            pngfile=""
+            # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
+            while IFS= read -r line; do
+              if [ $inside -eq 0 ] && [[ "$line" =~ ^```plantuml ]]; then
+                inside=1
+                cnt=$((cnt+1))
+                umlfile="$dir/${base}-plantuml-${cnt}.uml"
+                pngfile="${base}-plantuml-${cnt}.png"
+                : > "$umlfile"
+                continue
+              fi
+              if [ $inside -eq 1 ] && [ "$line" = '```' ]; then
+                inside=0
+                # render UML to PNG next to the markdown file
+                java -jar plantuml.jar -tpng -o "$dir" "$umlfile"
+                echo "![]($pngfile)" >> "$tmp"
+                continue
+              fi
+              if [ $inside -eq 1 ]; then
+                echo "$line" >> "$umlfile"
+              else
+                echo "$line" >> "$tmp"
+              fi
+            done < "$f"
+            mv "$tmp" "${f}.processed.md"
+            pandoc "${f}.processed.md" -o "${f%.md}.pdf"
+            echo "Built ${f%.md}.pdf"
           done <<< "$files"
 
       - name: Commit and push generated PDFs
