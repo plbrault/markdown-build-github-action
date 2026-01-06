@@ -89,9 +89,16 @@ jobs:
                 echo "$line" >> "$tmp"
               fi
             done < "$f"
-            mv "$tmp" "${f}.processed.md"
-            pandoc "${f}.processed.md" -o "${f%.md}.pdf"
-            echo "Built ${f%.md}.pdf"
+            procfile="$dir/${base}.processed.md"
+            mv "$tmp" "$procfile"
+            # Run pandoc from the markdown directory so relative image paths resolve
+            (cd "$dir" && pandoc "${base}.processed.md" -o "${base}.pdf")
+            echo "Built $dir/${base}.pdf"
+            # remove generated .processed.md and PNGs so they are not committed
+            rm -f "$procfile"
+            for p in "${pngs[@]:-}"; do
+              rm -f "$p"
+            done
           done < <(printf '%s\n' "$files")
 
       - name: Commit and push generated PDFs
