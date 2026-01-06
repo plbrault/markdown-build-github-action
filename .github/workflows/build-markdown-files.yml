@@ -1,0 +1,58 @@
+name: Build Markdown PDFs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  build-markdown-pdfs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      - name: Get changed Markdown files
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          files=$(git diff --name-only FETCH_HEAD...HEAD -- '*.md' || true)
+          files=$(printf "%s\n" "$files" | grep -v -E '(^|/)README\.md$' || true)
+          if [ -z "$files" ]; then
+            echo "No changed markdown files found"
+            echo "files=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          printf "%s\n" "$files" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Install Pandoc and TeX (for PDF output)
+        if: steps.changed.outputs.files != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended
+
+      - name: Convert changed Markdown files to PDF
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.files }}"
+          if [ -z "$files" ]; then
+            echo "No files to process"
+            exit 0
+          fi
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            out="${f%.md}.pdf"
+            pandoc "$f" -o "$out"
+            echo "Built $out"
+          done <<< "$files"
