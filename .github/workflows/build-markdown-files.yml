@@ -78,11 +78,17 @@ jobs:
               fi
               if [ $inside -eq 1 ] && [ "$line" = '```' ]; then
                 inside=0
-                # render UML to PNG next to the markdown file using absolute paths
+                # render UML to PNG
+                echo "Rendering PlantUML diagram $cnt for $f"
                 java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
-                # Move PNG to the correct directory
-                mv "${umlfile%.uml}.png" "$WORKSPACE/$dir/$pngfile"
-                pngs+=("$WORKSPACE/$dir/$pngfile")
+                generated_png="${umlfile%.uml}.png"
+                if [ ! -f "$generated_png" ]; then
+                  echo "ERROR: PlantUML did not generate $generated_png"
+                  exit 1
+                fi
+                echo "PlantUML generated: $generated_png"
+                ls -lh "$generated_png"
+                pngs+=("$generated_png")
                 echo "![]($pngfile)" >> "$tmp"
                 continue
               fi
@@ -94,8 +100,10 @@ jobs:
             done < "$f"
             procfile="$WORKSPACE/$dir/${base}.processed.md"
             mv "$tmp" "$procfile"
+            echo "Generated processed markdown at $procfile"
+            cat "$procfile"
             # Run pandoc from the markdown directory so relative image paths resolve
-            (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -o "${base}.pdf")
+            (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" --pdf-engine=xelatex -o "${base}.pdf")
             echo "Built $dir/${base}.pdf"
             # remove generated .processed.md, .uml files and PNGs so they are not committed
             rm -f "$procfile"
