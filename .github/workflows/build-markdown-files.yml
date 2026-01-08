@@ -57,6 +57,7 @@ jobs:
             echo "No files to process"
             exit 0
           fi
+          WORKSPACE=$(pwd)
           while IFS= read -r f; do
             [ -z "$f" ] && continue
             dir=$(dirname "$f")
@@ -64,22 +65,24 @@ jobs:
             tmp=$(mktemp)
             cnt=0
             inside=0
-            umlfile=""
-            pngfile=""
+            pngs=()
             # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
             while IFS= read -r line; do
               if [ $inside -eq 0 ] && [[ "$line" =~ ^\`\`\`plantuml ]]; then
                 inside=1
                 cnt=$((cnt+1))
-                umlfile="$dir/${base}-plantuml-${cnt}.uml"
+                umlfile="$WORKSPACE/$dir/${base}-plantuml-${cnt}.uml"
                 pngfile="${base}-plantuml-${cnt}.png"
                 : > "$umlfile"
                 continue
               fi
               if [ $inside -eq 1 ] && [ "$line" = '```' ]; then
                 inside=0
-                # render UML to PNG next to the markdown file
-                java -jar plantuml.jar -tpng -o "$dir" "$umlfile"
+                # render UML to PNG next to the markdown file using absolute paths
+                java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
+                # Move PNG to the correct directory
+                mv "${umlfile%.uml}.png" "$WORKSPACE/$dir/$pngfile"
+                pngs+=("$WORKSPACE/$dir/$pngfile")
                 echo "![]($pngfile)" >> "$tmp"
                 continue
               fi
@@ -89,14 +92,15 @@ jobs:
                 echo "$line" >> "$tmp"
               fi
             done < "$f"
-            procfile="$dir/${base}.processed.md"
+            procfile="$WORKSPACE/$dir/${base}.processed.md"
             mv "$tmp" "$procfile"
             # Run pandoc from the markdown directory so relative image paths resolve
-            (cd "$dir" && pandoc "${base}.processed.md" -o "${base}.pdf")
+            (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -o "${base}.pdf")
             echo "Built $dir/${base}.pdf"
-            # remove generated .processed.md and PNGs so they are not committed
+            # remove generated .processed.md, .uml files and PNGs so they are not committed
             rm -f "$procfile"
-            for p in "${pngs[@]:-}"; do
+            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
+            for p in "${pngs[@]}"; do
               rm -f "$p"
             done
           done < <(printf '%s\n' "$files")
