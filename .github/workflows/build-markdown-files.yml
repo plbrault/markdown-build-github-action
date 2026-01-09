@@ -60,6 +60,7 @@ jobs:
           WORKSPACE=$(pwd)
           while IFS= read -r f; do
             [ -z "$f" ] && continue
+            echo "Processing file: $f"
             dir=$(dirname "$f")
             base=$(basename "$f" .md)
             tmp=$(mktemp)
@@ -68,7 +69,9 @@ jobs:
             pngs=()
             # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
             while IFS= read -r line; do
+              echo "DEBUG: Line: [$line] Inside: $inside"
               if [ $inside -eq 0 ] && [[ "$line" =~ ^'```'plantuml ]]; then
+                echo "DEBUG: Matched PlantUML start!"
                 inside=1
                 cnt=$((cnt+1))
                 umlfile="$WORKSPACE/$dir/${base}-plantuml-${cnt}.uml"
