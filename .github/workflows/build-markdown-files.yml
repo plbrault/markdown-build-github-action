@@ -38,46 +38,10 @@ jobs:
 
       - name: Cache APT packages
         if: steps.changed.outputs.files != ''
-        uses: actions/cache@v4
+        uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/build-markdown-files.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-apt-
-
-      - name: Cache TeX Live and dependencies
-        if: steps.changed.outputs.files != ''
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/share/texlive
-            /usr/share/texmf
-            /var/lib/texmf
-          key: ${{ runner.os }}-texlive-${{ hashFiles('.github/workflows/build-markdown-files.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-texlive-
-
-      - name: Install dependencies (Pandoc, TeX, Java, Graphviz)
-        if: steps.changed.outputs.files != ''
-        run: |
-          # Check which packages need to be installed
-          missing_packages=()
-          command -v pandoc &> /dev/null || missing_packages+=(pandoc)
-          command -v xelatex &> /dev/null || missing_packages+=(texlive-xetex texlive-fonts-recommended texlive-latex-recommended)
-          command -v java &> /dev/null || missing_packages+=(default-jre)
-          command -v dot &> /dev/null || missing_packages+=(graphviz)
-          command -v curl &> /dev/null || missing_packages+=(curl)
-          
-          # Only run apt-get if packages are missing
-          if [ ${#missing_packages[@]} -gt 0 ]; then
-            echo "Installing missing packages: ${missing_packages[@]}"
-            sudo apt-get update
-            sudo apt-get install -y "${missing_packages[@]}"
-          else
-            echo "All packages already installed"
-          fi
+          packages: pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
+          version: 1.0
 
       - name: Cache PlantUML JAR
         if: steps.changed.outputs.files != ''
