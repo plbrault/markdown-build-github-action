@@ -4,10 +4,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
-concurrency:
-  group: build-markdown-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
-
 permissions:
   contents: write
 
@@ -21,7 +17,22 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref }}
 
+      - name: Check if last commit is from bot
+        id: check_bot
+        run: |
+          last_commit_author=$(git log -1 --pretty=format:'%an')
+          last_commit_msg=$(git log -1 --pretty=format:'%s')
+          echo "Last commit author: $last_commit_author"
+          echo "Last commit message: $last_commit_msg"
+          if [[ "$last_commit_author" == "github-actions[bot]" ]] && [[ "$last_commit_msg" == "Build: add generated PDFs for changed Markdown files" ]]; then
+            echo "This is a bot commit, skipping processing"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Get changed Markdown files
+        if: steps.check_bot.outputs.skip != 'true'
         id: changed
         shell: bash
         run: |
@@ -41,18 +52,18 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Install dependencies (Pandoc, TeX, Java, Graphviz)
-        if: steps.changed.outputs.files != ''
+        if: steps.check_bot.outputs.skip != 'true' && steps.changed.outputs.files != ''
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
 
       - name: Download PlantUML
-        if: steps.changed.outputs.files != ''
+        if: steps.check_bot.outputs.skip != 'true' && steps.changed.outputs.files != ''
         run: |
           curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
 
       - name: Pre-render PlantUML and convert changed Markdown files to PDF
-        if: steps.changed.outputs.files != ''
+        if: steps.check_bot.outputs.skip != 'true' && steps.changed.outputs.files != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -117,7 +128,7 @@ jobs:
           done < <(printf '%s\n' "$files")
 
       - name: Commit and push generated PDFs
-        if: steps.changed.outputs.files != ''
+        if: steps.check_bot.outputs.skip != 'true' && steps.changed.outputs.files != ''
         shell: bash
         env:
           GITHUB_HEAD_REF: ${{ github.head_ref }}
