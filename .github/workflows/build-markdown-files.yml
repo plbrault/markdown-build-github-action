@@ -101,7 +101,7 @@ jobs:
               else
                 echo "$line" >> "$tmp"
               fi
-            done < "$f"
+            done < <(cat "$f"; echo "\n")
             procfile="$WORKSPACE/$dir/${base}.processed.md"
             mv "$tmp" "$procfile"
             echo "Generated processed markdown at $procfile"
