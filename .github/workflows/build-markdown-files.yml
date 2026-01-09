@@ -69,9 +69,7 @@ jobs:
             pngs=()
             # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
             while IFS= read -r line; do
-              echo "DEBUG: Line: [$line] Inside: $inside"
               if [ $inside -eq 0 ] && [[ "$line" =~ ^'```'plantuml ]]; then
-                echo "DEBUG: Matched PlantUML start!"
                 inside=1
                 cnt=$((cnt+1))
                 umlfile="$WORKSPACE/$dir/${base}-plantuml-${cnt}.uml"
@@ -81,7 +79,6 @@ jobs:
               fi
               if [ $inside -eq 1 ]; then
                 if [[ "$line" =~ ^'```' ]]; then
-                  echo "DEBUG: Matched closing fence!"
                   inside=0
                   # render UML to PNG
                   echo "Rendering PlantUML diagram $cnt for $f"
@@ -104,8 +101,6 @@ jobs:
             done < <(cat "$f"; echo "\n")
             procfile="$WORKSPACE/$dir/${base}.processed.md"
             mv "$tmp" "$procfile"
-            echo "Generated processed markdown at $procfile"
-            cat "$procfile"
             # Run pandoc from the markdown directory so relative image paths resolve
             (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" --pdf-engine=xelatex -o "${base}.pdf")
             echo "Built $dir/${base}.pdf"
