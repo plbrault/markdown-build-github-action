@@ -68,7 +68,7 @@ jobs:
             pngs=()
             # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
             while IFS= read -r line; do
-              if [ $inside -eq 0 ] && [[ "$line" =~ ^\`\`\`plantuml ]]; then
+              if [ $inside -eq 0 ] && [[ "$line" =~ ^'```'plantuml ]]; then
                 inside=1
                 cnt=$((cnt+1))
                 umlfile="$WORKSPACE/$dir/${base}-plantuml-${cnt}.uml"
@@ -76,7 +76,7 @@ jobs:
                 : > "$umlfile"
                 continue
               fi
-              if [ $inside -eq 1 ] && [ "$line" = '```' ]; then
+              if [ $inside -eq 1 ] && [[ "$line" =~ ^'```'$ ]]; then
                 inside=0
                 # render UML to PNG
                 echo "Rendering PlantUML diagram $cnt for $f"
