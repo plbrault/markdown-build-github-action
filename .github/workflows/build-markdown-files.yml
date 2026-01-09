@@ -1,0 +1,157 @@
+name: Build Markdown Files
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: write
+
+jobs:
+  build-markdown-files:
+    runs-on: ubuntu-22.04  # Pin to Ubuntu 22.04 LTS
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      - name: Get changed Markdown files
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          files=$(git diff --name-only FETCH_HEAD...HEAD -- '*.md' || true)
+          files=$(printf "%s\n" "$files" | grep -v -E '(^|/)README\.md$' || true)
+          if [ -z "$files" ]; then
+            echo "No changed markdown files found"
+            echo "files=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          {
+            echo "files<<EOF"
+            printf "%s\n" "$files"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Cache APT packages
+        if: steps.changed.outputs.files != ''
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
+          version: 1.0
+
+      - name: Cache PlantUML JAR
+        if: steps.changed.outputs.files != ''
+        id: cache-plantuml
+        uses: actions/cache@v4
+        with:
+          path: plantuml.jar
+          key: plantuml-v1.2025.0
+
+      - name: Download PlantUML
+        if: steps.changed.outputs.files != '' && steps.cache-plantuml.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2025.0/plantuml-1.2025.0.jar
+
+      - name: Pre-render PlantUML and convert changed Markdown files to PDF
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.files }}"
+          if [ -z "$files" ]; then
+            echo "No files to process"
+            exit 0
+          fi
+          WORKSPACE=$(pwd)
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            echo "Processing file: $f"
+            dir=$(dirname "$f")
+            base=$(basename "$f" .md)
+            tmp=$(mktemp)
+            cnt=0
+            inside=0
+            pngs=()
+            # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
+            while IFS= read -r line; do
+              if [ $inside -eq 0 ] && [[ "$line" =~ ^'```'plantuml ]]; then
+                inside=1
+                cnt=$((cnt+1))
+                umlfile="$WORKSPACE/$dir/${base}-plantuml-${cnt}.uml"
+                pngfile="${base}-plantuml-${cnt}.png"
+                : > "$umlfile"
+                continue
+              fi
+              if [ $inside -eq 1 ]; then
+                if [[ "$line" =~ ^'```' ]]; then
+                  inside=0
+                  # render UML to PNG
+                  echo "Rendering PlantUML diagram $cnt for $f"
+                  java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
+                  generated_png="${umlfile%.uml}.png"
+                  if [ ! -f "$generated_png" ]; then
+                    echo "ERROR: PlantUML did not generate $generated_png"
+                    exit 1
+                  fi
+                  echo "PlantUML generated: $generated_png"
+                  ls -lh "$generated_png"
+                  pngs+=("$generated_png")
+                  echo "![]($pngfile)" >> "$tmp"
+                  continue
+                fi
+                echo "$line" >> "$umlfile"
+              else
+                echo "$line" >> "$tmp"
+              fi
+            done < <(cat "$f"; echo)
+            procfile="$WORKSPACE/$dir/${base}.processed.md"
+            mv "$tmp" "$procfile"
+            # Run pandoc from the markdown directory so relative image paths resolve
+            (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures --pdf-engine=xelatex -V geometry:margin=2cm -V mainfont="Liberation Serif" -V monofont="Liberation Mono" -o "${base}.pdf")
+            echo "Built $dir/${base}.pdf"
+            # remove generated .processed.md, .uml files and PNGs so they are not committed
+            rm -f "$procfile"
+            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
+            for p in "${pngs[@]}"; do
+              rm -f "$p"
+            done
+          done < <(printf '%s\n' "$files")
+
+      - name: Commit and push generated PDFs
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        env:
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.files }}"
+          pdfs=()
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            pdfs+=("${f%.md}.pdf")
+          done <<< "$files"
+          if [ ${#pdfs[@]} -eq 0 ]; then
+            echo "No PDFs to commit"
+            exit 0
+          fi
+          git --version
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Add generated PDFs
+          git add -- "${pdfs[@]}"
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Build changed Markdown files"
+          # Push back to the PR branch
+          if [ -n "${GITHUB_HEAD_REF:-}" ]; then
+            git push origin HEAD:refs/heads/${GITHUB_HEAD_REF}
+          else
+            git push origin HEAD
+          fi
