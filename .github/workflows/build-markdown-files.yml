@@ -79,10 +79,12 @@ jobs:
                 : > "$umlfile"
                 continue
               fi
-              if [ $inside -eq 1 ] && [[ "$line" =~ ^'```'$ ]]; then
-                inside=0
-                # render UML to PNG
-                echo "Rendering PlantUML diagram $cnt for $f"
+              if [ $inside -eq 1 ]; then
+                if [[ "$line" =~ ^'```' ]]; then
+                  echo "DEBUG: Matched closing fence!"
+                  inside=0
+                  # render UML to PNG
+                  echo "Rendering PlantUML diagram $cnt for $f"
                 java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
                 generated_png="${umlfile%.uml}.png"
                 if [ ! -f "$generated_png" ]; then
