@@ -85,19 +85,18 @@ jobs:
                   inside=0
                   # render UML to PNG
                   echo "Rendering PlantUML diagram $cnt for $f"
-                java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
-                generated_png="${umlfile%.uml}.png"
-                if [ ! -f "$generated_png" ]; then
-                  echo "ERROR: PlantUML did not generate $generated_png"
-                  exit 1
+                  java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
+                  generated_png="${umlfile%.uml}.png"
+                  if [ ! -f "$generated_png" ]; then
+                    echo "ERROR: PlantUML did not generate $generated_png"
+                    exit 1
+                  fi
+                  echo "PlantUML generated: $generated_png"
+                  ls -lh "$generated_png"
+                  pngs+=("$generated_png")
+                  echo "![]($pngfile)" >> "$tmp"
+                  continue
                 fi
-                echo "PlantUML generated: $generated_png"
-                ls -lh "$generated_png"
-                pngs+=("$generated_png")
-                echo "![]($pngfile)" >> "$tmp"
-                continue
-              fi
-              if [ $inside -eq 1 ]; then
                 echo "$line" >> "$umlfile"
               else
                 echo "$line" >> "$tmp"
