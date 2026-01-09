@@ -36,14 +36,33 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
+      - name: Cache APT packages
+        if: steps.changed.outputs.files != ''
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/build-markdown-files.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       - name: Install dependencies (Pandoc, TeX, Java, Graphviz)
         if: steps.changed.outputs.files != ''
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
 
-      - name: Download PlantUML
+      - name: Cache PlantUML JAR
         if: steps.changed.outputs.files != ''
+        id: cache-plantuml
+        uses: actions/cache@v4
+        with:
+          path: plantuml.jar
+          key: plantuml-v1.2025.0
+
+      - name: Download PlantUML
+        if: steps.changed.outputs.files != '' && steps.cache-plantuml.outputs.cache-hit != 'true'
         run: |
           curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2025.0/plantuml-1.2025.0.jar
 
