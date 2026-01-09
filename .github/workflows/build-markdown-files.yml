@@ -1,4 +1,4 @@
-name: Build Markdown PDFs
+name: Build Markdown Files
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  build-markdown-pdfs:
+  build-markdown-files:
     runs-on: ubuntu-22.04  # Pin to Ubuntu 22.04 LTS
     steps:
       - name: Checkout PR branch
