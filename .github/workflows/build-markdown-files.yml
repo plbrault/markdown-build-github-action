@@ -36,6 +36,17 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
+      - name: Cache APT packages
+        if: steps.changed.outputs.files != ''
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/build-markdown-files.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       - name: Cache TeX Live and dependencies
         if: steps.changed.outputs.files != ''
         uses: actions/cache@v4
@@ -51,14 +62,21 @@ jobs:
       - name: Install dependencies (Pandoc, TeX, Java, Graphviz)
         if: steps.changed.outputs.files != ''
         run: |
-          # Check if TeX Live is already installed (from cache)
-          if ! command -v xelatex &> /dev/null; then
+          # Check which packages need to be installed
+          missing_packages=()
+          command -v pandoc &> /dev/null || missing_packages+=(pandoc)
+          command -v xelatex &> /dev/null || missing_packages+=(texlive-xetex texlive-fonts-recommended texlive-latex-recommended)
+          command -v java &> /dev/null || missing_packages+=(default-jre)
+          command -v dot &> /dev/null || missing_packages+=(graphviz)
+          command -v curl &> /dev/null || missing_packages+=(curl)
+          
+          # Only run apt-get if packages are missing
+          if [ ${#missing_packages[@]} -gt 0 ]; then
+            echo "Installing missing packages: ${missing_packages[@]}"
             sudo apt-get update
-            sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
+            sudo apt-get install -y "${missing_packages[@]}"
           else
-            # Only install non-TeX packages if TeX is cached
-            sudo apt-get update
-            sudo apt-get install -y pandoc default-jre graphviz curl
+            echo "All packages already installed"
           fi
 
       - name: Cache PlantUML JAR
