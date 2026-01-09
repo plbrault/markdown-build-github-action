@@ -36,22 +36,30 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
-      - name: Cache APT packages
+      - name: Cache TeX Live and dependencies
         if: steps.changed.outputs.files != ''
         uses: actions/cache@v4
         with:
           path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/build-markdown-files.yml') }}
+            /usr/share/texlive
+            /usr/share/texmf
+            /var/lib/texmf
+          key: ${{ runner.os }}-texlive-${{ hashFiles('.github/workflows/build-markdown-files.yml') }}
           restore-keys: |
-            ${{ runner.os }}-apt-
+            ${{ runner.os }}-texlive-
 
       - name: Install dependencies (Pandoc, TeX, Java, Graphviz)
         if: steps.changed.outputs.files != ''
         run: |
-          sudo apt-get update
-          sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
+          # Check if TeX Live is already installed (from cache)
+          if ! command -v xelatex &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
+          else
+            # Only install non-TeX packages if TeX is cached
+            sudo apt-get update
+            sudo apt-get install -y pandoc default-jre graphviz curl
+          fi
 
       - name: Cache PlantUML JAR
         if: steps.changed.outputs.files != ''
