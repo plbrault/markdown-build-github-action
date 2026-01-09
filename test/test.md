@@ -105,3 +105,5 @@ class Hexahedron {
 
 @enduml
 ```
+
+![Flamingos](flamingos.jpg)
