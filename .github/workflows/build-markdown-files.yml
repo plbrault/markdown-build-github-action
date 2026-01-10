@@ -76,12 +76,13 @@ jobs:
             cnt=0
             inside=0
             # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
+            mkdir -p "$WORKSPACE/$dir/uml"
             while IFS= read -r line; do
               if [ $inside -eq 0 ] && [[ "$line" =~ ^'```'plantuml ]]; then
                 inside=1
                 cnt=$((cnt+1))
-                umlfile="$WORKSPACE/$dir/${base}-plantuml-${cnt}.uml"
-                pngfile="${base}-plantuml-${cnt}.png"
+                umlfile="$WORKSPACE/$dir/uml/${base}-plantuml-${cnt}.uml"
+                pngfile="uml/${base}-plantuml-${cnt}.png"
                 : > "$umlfile"
                 continue
               fi
@@ -153,10 +154,9 @@ jobs:
             [ -z "$f" ] && continue
             dir=$(dirname "$f")
             base=$(basename "$f" .md)
-            # Remove generated .processed.md, .uml files and PNGs so they are not committed
+            # Remove temporary files (keep uml/ folder with PNGs)
             rm -f "$WORKSPACE/$dir/${base}.processed.md"
-            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
-            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.png
+            rm -f "$WORKSPACE/$dir/uml/${base}"-plantuml-*.uml
           done < <(printf '%s\n' "$files")
 
       - name: Commit and push generated PDFs and HTML files
@@ -182,6 +182,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Add generated PDFs and HTML files
           git add -- "${generated_files[@]}"
+          # Add all uml/ directories
+          git add -- '**/uml/' 2>/dev/null || true
           # Only commit if there are changes
           if git diff --staged --quiet; then
             echo "No changes to commit"
