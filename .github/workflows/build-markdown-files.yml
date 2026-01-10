@@ -37,14 +37,15 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
-      - name: Cache APT packages
+      - name: Install dependencies
         if: steps.changed.outputs.files != ''
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
           version: 1.0
+          execute_install_scripts: true
 
-      - name: Cache PlantUML JAR
+      - name: Restore PlantUML JAR from cache
         if: steps.changed.outputs.files != ''
         id: cache-plantuml
         uses: actions/cache@v4
