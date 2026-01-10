@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin ${{ github.event.pull_request.base.ref }}
-          files=$(git diff --name-only FETCH_HEAD...HEAD -- '*.md' || true)
+          files=$(git -c core.quotePath=false diff --name-only FETCH_HEAD...HEAD -- '*.md' || true)
           files=$(printf "%s\n" "$files" | grep -v -E '(^|/)README\.md$' || true)
           if [ -z "$files" ]; then
             echo "No changed markdown files found"
