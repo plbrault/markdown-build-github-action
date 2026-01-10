@@ -258,7 +258,7 @@ jobs:
                 ? f.replace('.md', '').replace(/\//g, '-') + ' (html).zip'
                 : base + ' (html).zip';
               const pdfDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${pdfName}`;
-              const zipDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${encodeURIComponent(zipName)}`;
+              const zipDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${zipName.replace(/ /g, '.')}`;
               return `- ${f}\n  - [\`PDF\`](${pdfDownloadUrl})\n  - [\`HTML (zip)\`](${zipDownloadUrl})`;
             }).join('\n');
             
