@@ -127,30 +127,42 @@ jobs:
             done
           done < <(printf '%s\n' "$files")
 
-      - name: Upload PDF artifacts
+      - name: Create release with PDFs
         if: steps.changed.outputs.files != ''
-        uses: actions/upload-artifact@v4
+        id: create-release
+        uses: ncipollo/release-action@v1
         with:
-          name: generated-pdfs
-          path: |
-            **/*.pdf
-          if-no-files-found: error
+          tag: pr-${{ github.event.pull_request.number }}
+          name: "Built Markdown files (#${{ github.event.pull_request.number }})"
+          body: |
+            Built Markdown files from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+            
+            Link to PR: ${{ github.event.pull_request.html_url }}
+            
+            ## Generated PDFs:
+            ${{ steps.changed.outputs.files }}
+          artifacts: "**/*.pdf"
+          artifactContentType: application/pdf
+          allowUpdates: true
+          removeArtifacts: true
+          prerelease: true
+          makeLatest: false
 
-      - name: Comment on PR with artifact links
+      - name: Comment on PR with release link
         if: steps.changed.outputs.files != ''
         uses: actions/github-script@v7
         with:
           script: |
             const files = `${{ steps.changed.outputs.files }}`.trim().split('\n').filter(f => f);
-            const pdfList = files.map(f => `- \`${f.replace('.md', '.pdf')}\``).join('\n');
+            const pdfList = files.map(f => `- [\`${f.replace('.md', '.pdf')}\`](${{ steps.create-release.outputs.html_url }}) - ${f} (PDF)`).join('\n');
             
             const comment = `## 📄 Generated PDFs
             
-            The following PDF files have been generated and are available as artifacts:
+            The following PDF files have been generated and are available in the release:
             
             ${pdfList}
             
-            [Download artifacts from this workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+            [View Release: Built Markdown files (#${{ github.event.pull_request.number }})](${{ steps.create-release.outputs.html_url }})`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -158,3 +170,4 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
+
