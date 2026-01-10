@@ -24,38 +24,38 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin ${{ github.event.pull_request.base.ref }}
-          files=$(git diff --name-only FETCH_HEAD...HEAD -- '*.md' || true)
+          files=$(git -c core.quotePath=false diff --name-only FETCH_HEAD...HEAD -- '*.md' || true)
           files=$(printf "%s\n" "$files" | grep -v -E '(^|/)README\.md$' || true)
           if [ -z "$files" ]; then
             echo "No changed markdown files found"
-            echo "files=" >> $GITHUB_OUTPUT
+            echo "has_files=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          {
-            echo "files<<EOF"
-            printf "%s\n" "$files"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          # Save files to a temporary file to preserve special characters
+          printf "%s\n" "$files" > /tmp/changed_files.txt
+          echo "has_files=true" >> $GITHUB_OUTPUT
+          echo "Changed files:"
+          cat /tmp/changed_files.txt
 
       - name: Install non-TeX dependencies (cached)
-        if: steps.changed.outputs.files != ''
+        if: steps.changed.outputs.has_files == 'true'
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: pandoc default-jre curl
           version: 1.0
 
       - name: Install GraphViz (not cached)
-        if: steps.changed.outputs.files != ''
+        if: steps.changed.outputs.has_files == 'true'
         run: |
           sudo apt-get install -y graphviz
 
       - name: Install TeX Live (not cached)
-        if: steps.changed.outputs.files != ''
+        if: steps.changed.outputs.has_files == 'true'
         run: |
           sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-latex-recommended
 
       - name: Restore PlantUML JAR if cache
-        if: steps.changed.outputs.files != ''
+        if: steps.changed.outputs.has_files == 'true'
         id: cache-plantuml
         uses: actions/cache@v4
         with:
@@ -63,29 +63,16 @@ jobs:
           key: plantuml-v1.2026.0
 
       - name: Download PlantUML if not cached
-        if: steps.changed.outputs.files != '' && steps.cache-plantuml.outputs.cache-hit != 'true'
+        if: steps.changed.outputs.has_files == 'true' && steps.cache-plantuml.outputs.cache-hit != 'true'
         run: |
           curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2026.0/plantuml-1.2026.0.jar
 
-      - name: Pre-render PlantUML and convert changed Markdown files to PDF
-        if: steps.changed.outputs.files != ''
+      - name: Pre-render PlantUML diagrams
+        if: steps.changed.outputs.has_files == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          files="${{ steps.changed.outputs.files }}"
-          if [ -z "$files" ]; then
-            echo "No files to process"
-            exit 0
-          fi
           WORKSPACE=$(pwd)
-          
-          # Identify conflicting basenames
-          declare -A basename_count
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            base=$(basename "$f" .md)
-            basename_count["$base"]=$((${basename_count["$base"]:-0} + 1))
-          done < <(printf '%s\n' "$files")
           
           while IFS= read -r f; do
             [ -z "$f" ] && continue
@@ -95,7 +82,6 @@ jobs:
             tmp=$(mktemp)
             cnt=0
             inside=0
-            pngs=()
             # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
             while IFS= read -r line; do
               if [ $inside -eq 0 ] && [[ "$line" =~ ^'```'plantuml ]]; then
@@ -119,7 +105,6 @@ jobs:
                   fi
                   echo "PlantUML generated: $generated_png"
                   ls -lh "$generated_png"
-                  pngs+=("$generated_png")
                   echo "![]($pngfile)" >> "$tmp"
                   continue
                 fi
@@ -130,30 +115,89 @@ jobs:
             done < <(cat "$f"; echo)
             procfile="$WORKSPACE/$dir/${base}.processed.md"
             mv "$tmp" "$procfile"
-            # Run pandoc from the markdown directory so relative image paths resolve
-            (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures --pdf-engine=xelatex -V geometry:margin=2cm -V mainfont="Liberation Serif" -V monofont="Liberation Mono" -o "${base}.pdf")
-            echo "Built $dir/${base}.pdf"
-            
-            # Create filename for release - include path only if there's a conflict
-            if [ "${basename_count[$base]}" -gt 1 ]; then
-              release_pdf_name="${f%.md}"
-              release_pdf_name="${release_pdf_name//\//-}.pdf"
-            else
-              release_pdf_name="${base}.pdf"
-            fi
-            cp "$WORKSPACE/$dir/${base}.pdf" "$WORKSPACE/$release_pdf_name"
-            echo "Copied to $release_pdf_name for release"
-            
-            # remove generated .processed.md, .uml files and PNGs so they are not committed
-            rm -f "$procfile"
-            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
-            for p in "${pngs[@]}"; do
-              rm -f "$p"
-            done
-          done < <(printf '%s\n' "$files")
+          done < /tmp/changed_files.txt
 
-      - name: Create release with PDFs
-        if: steps.changed.outputs.files != ''
+      - name: Generate PDF files
+        if: steps.changed.outputs.has_files == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKSPACE=$(pwd)
+          source "$WORKSPACE/.github/scripts/process-files.sh"
+          
+          build_basename_counts "$(cat /tmp/changed_files.txt)"
+          
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            echo "Processing: $f"
+            dir=$(dirname "$f")
+            base=$(basename "$f" .md)
+            procfile="$WORKSPACE/$dir/${base}.processed.md"
+            
+            # Check if processed file exists
+            if [ ! -f "$procfile" ]; then
+              echo "ERROR: Processed file not found: $procfile"
+              exit 1
+            fi
+            
+            release_base=$(get_release_name "$f" basename_count)
+            
+            # Generate PDF (use absolute paths to avoid issues with special characters)
+            echo "Generating PDF from: $procfile"
+            (cd "$WORKSPACE/$dir" && pandoc "./${base}.processed.md" -f markdown-implicit_figures --pdf-engine=xelatex -V geometry:margin=2cm -V mainfont="Liberation Serif" -V monofont="Liberation Mono" -o "./${base}.pdf")
+            echo "Built $dir/${base}.pdf"
+            cp "$WORKSPACE/$dir/${base}.pdf" "$WORKSPACE/${release_base}.pdf"
+            echo "Copied to ${release_base}.pdf for release"
+          done < /tmp/changed_files.txt
+
+      - name: Generate HTML files and create ZIP bundles
+        if: steps.changed.outputs.has_files == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKSPACE=$(pwd)
+          source "$WORKSPACE/.github/scripts/process-files.sh"
+          
+          build_basename_counts "$(cat /tmp/changed_files.txt)"
+          
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            dir=$(dirname "$f")
+            base=$(basename "$f" .md)
+            procfile="$WORKSPACE/$dir/${base}.processed.md"
+            
+            # Check if processed file exists
+            if [ ! -f "$procfile" ]; then
+              echo "ERROR: Processed file not found: $procfile"
+              exit 1
+            fi
+            
+            release_base=$(get_release_name "$f" basename_count)
+            
+            # Generate HTML (use absolute paths to avoid issues with special characters)
+            echo "Generating HTML from: $procfile"
+            (cd "$WORKSPACE/$dir" && pandoc "./${base}.processed.md" -f markdown-implicit_figures -o "./${base}.html")
+            echo "Built $dir/${base}.html"
+            
+            # Create ZIP bundle with HTML and PlantUML PNGs
+            (cd "$WORKSPACE/$dir" && zip -r "$WORKSPACE/${release_base}-html.zip" "./${base}.html" "${base}"-plantuml-*.png 2>/dev/null || zip "$WORKSPACE/${release_base}-html.zip" "./${base}.html")
+            echo "Created ${release_base}-html.zip for release"
+            
+            # Cleanup generated files
+            rm -f "$procfile"
+            rm -f "$WORKSPACE/$dir/${base}.html"
+            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
+            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.png
+          done < /tmp/changed_files.txt
+
+      - name: List files for release
+        if: steps.changed.outputs.has_files == 'true'
+        run: |
+          echo "Files in workspace root:"
+          ls -lh *.pdf *.zip 2>/dev/null || echo "No PDF or ZIP files found"
+
+      - name: Create release with PDFs and HTML bundles
+        if: steps.changed.outputs.has_files == 'true'
         id: create-release
         uses: ncipollo/release-action@v1
         with:
@@ -164,21 +208,22 @@ jobs:
             
             Link to PR: ${{ github.event.pull_request.html_url }}
             
-            ## Generated PDFs:
-            ${{ steps.changed.outputs.files }}
-          artifacts: "*.pdf"
-          artifactContentType: application/pdf
+          artifacts: |
+            *.pdf
+            *.zip
+          artifactContentType: application/octet-stream
           allowUpdates: true
           removeArtifacts: true
           prerelease: true
           makeLatest: false
 
       - name: Comment on PR with release link
-        if: steps.changed.outputs.files != ''
+        if: steps.changed.outputs.has_files == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const files = `${{ steps.changed.outputs.files }}`.trim().split('\n').filter(f => f);
+            const fs = require('fs');
+            const files = fs.readFileSync('/tmp/changed_files.txt', 'utf8').trim().split('\n').filter(f => f);
             const prNumber = ${{ github.event.pull_request.number }};
             const repo = context.repo;
             
@@ -189,13 +234,17 @@ jobs:
               basenameCounts[base] = (basenameCounts[base] || 0) + 1;
             });
             
+            // Sanitize filename for release (same as bash script)
+            const sanitize = (name) => name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            
             const pdfList = files.map(f => {
               const base = f.split('/').pop().replace('.md', '');
-              const pdfName = basenameCounts[base] > 1 
-                ? f.replace('.md', '').replace(/\//g, '-') + '.pdf'
-                : base + '.pdf';
-              const downloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${pdfName}`;
-              return `- [\`${f.replace('.md', '.pdf')}\`](${downloadUrl})`;
+              const releaseBase = basenameCounts[base] > 1 
+                ? sanitize(f.replace('.md', '').replace(/\//g, '-'))
+                : sanitize(base);
+              const pdfDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${releaseBase}.pdf`;
+              const zipDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${releaseBase}-html.zip`;
+              return `- ${f}\n  - [\`PDF\`](${pdfDownloadUrl})\n  - [\`HTML (zip)\`](${zipDownloadUrl})`;
             }).join('\n');
             
             const comment = `## 📄 Files generated from Markdown
