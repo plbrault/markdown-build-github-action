@@ -37,15 +37,19 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
-      - name: Install dependencies
+      - name: Install non-TeX dependencies (cached)
         if: steps.changed.outputs.files != ''
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
+          packages: pandoc default-jre graphviz curl
           version: 1.0
-          execute_install_scripts: true
 
-      - name: Restore PlantUML JAR from cache
+      - name: Install TeX Live (not cached)
+        if: steps.changed.outputs.files != ''
+        run: |
+          sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-latex-recommended
+
+      - name: Restore PlantUML JAR if cache
         if: steps.changed.outputs.files != ''
         id: cache-plantuml
         uses: actions/cache@v4
@@ -53,7 +57,7 @@ jobs:
           path: plantuml.jar
           key: plantuml-v1.2025.0
 
-      - name: Download PlantUML
+      - name: Download PlantUML if not cached
         if: steps.changed.outputs.files != '' && steps.cache-plantuml.outputs.cache-hit != 'true'
         run: |
           curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2025.0/plantuml-1.2025.0.jar
