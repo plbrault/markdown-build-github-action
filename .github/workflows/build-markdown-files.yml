@@ -121,37 +121,34 @@ jobs:
             done
           done < <(printf '%s\n' "$files")
 
-      - name: Commit and push generated PDFs
+      - name: Upload PDF artifacts
         if: steps.changed.outputs.files != ''
-        shell: bash
-        env:
-          GITHUB_HEAD_REF: ${{ github.head_ref }}
-        run: |
-          set -euo pipefail
-          files="${{ steps.changed.outputs.files }}"
-          pdfs=()
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            pdfs+=("${f%.md}.pdf")
-          done <<< "$files"
-          if [ ${#pdfs[@]} -eq 0 ]; then
-            echo "No PDFs to commit"
-            exit 0
-          fi
-          git --version
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Add generated PDFs
-          git add -- "${pdfs[@]}"
-          # Only commit if there are changes
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "Build changed Markdown files"
-          # Push back to the PR branch
-          if [ -n "${GITHUB_HEAD_REF:-}" ]; then
-            git push origin HEAD:refs/heads/${GITHUB_HEAD_REF}
-          else
-            git push origin HEAD
-          fi
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-pdfs
+          path: |
+            **/*.pdf
+          if-no-files-found: error
+
+      - name: Comment on PR with artifact links
+        if: steps.changed.outputs.files != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = `${{ steps.changed.outputs.files }}`.trim().split('\n').filter(f => f);
+            const pdfList = files.map(f => `- \`${f.replace('.md', '.pdf')}\``).join('\n');
+            
+            const comment = `## 📄 Generated PDFs
+            
+            The following PDF files have been generated and are available as artifacts:
+            
+            ${pdfList}
+            
+            [Download artifacts from this workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
