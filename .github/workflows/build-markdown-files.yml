@@ -195,12 +195,12 @@ jobs:
                 ? f.replace('.md', '').replace(/\//g, '-') + '.pdf'
                 : base + '.pdf';
               const downloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${pdfName}`;
-              return `- [\`${f.replace('.md', '.pdf')}\`](${downloadUrl}) - ${f} (PDF)`;
+              return `- [\`${f.replace('.md', '.pdf')}\`](${downloadUrl})`;
             }).join('\n');
             
-            const comment = `## 📄 Generated PDFs
+            const comment = `## 📄 Files generated from Markdown
             
-            The following PDF files have been generated and are available in the release:
+            The following files have been generated:
             
             ${pdfList}
             
