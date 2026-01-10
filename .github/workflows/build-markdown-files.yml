@@ -41,8 +41,13 @@ jobs:
         if: steps.changed.outputs.files != ''
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: pandoc default-jre graphviz curl
+          packages: pandoc default-jre curl
           version: 1.0
+
+      - name: Install GraphViz (not cached)
+        if: steps.changed.outputs.files != ''
+        run: |
+          sudo apt-get install -y graphviz
 
       - name: Install TeX Live (not cached)
         if: steps.changed.outputs.files != ''
