@@ -234,16 +234,16 @@ jobs:
               basenameCounts[base] = (basenameCounts[base] || 0) + 1;
             });
             
+            // Sanitize filename for release (same as bash script)
+            const sanitize = (name) => name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            
             const pdfList = files.map(f => {
               const base = f.split('/').pop().replace('.md', '');
-              const pdfName = basenameCounts[base] > 1 
-                ? f.replace('.md', '').replace(/\//g, '-') + '.pdf'
-                : base + '.pdf';
-              const zipName = basenameCounts[base] > 1
-                ? f.replace('.md', '').replace(/\//g, '-') + '-html.zip'
-                : base + '-html.zip';
-              const pdfDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${pdfName.replace(/ /g, '_')}`;
-              const zipDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${zipName.replace(/ /g, '_')}`;
+              const releaseBase = basenameCounts[base] > 1 
+                ? sanitize(f.replace('.md', '').replace(/\//g, '-'))
+                : sanitize(base);
+              const pdfDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${releaseBase}.pdf`;
+              const zipDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${releaseBase}-html.zip`;
               return `- ${f}\n  - [\`PDF\`](${pdfDownloadUrl})\n  - [\`HTML (zip)\`](${zipDownloadUrl})`;
             }).join('\n');
             
