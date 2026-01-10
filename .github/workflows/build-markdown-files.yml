@@ -50,7 +50,9 @@ jobs:
         run: |
           sudo apt-get update
           # Simulate installation to get the actual list of packages that would be installed
-          deps=$(sudo apt-get install --simulate graphviz texlive-xetex texlive-fonts-recommended texlive-latex-recommended 2>&1 | grep "^  " | grep -v "^  graphviz\|^  texlive" | tr '\n' ' ')
+          output=$(sudo apt-get install --simulate graphviz texlive-xetex texlive-fonts-recommended texlive-latex-recommended 2>&1)
+          # Extract only the NEW packages section, excluding the main packages
+          deps=$(echo "$output" | sed -n '/^The following NEW packages will be installed:/,/^[0-9]/p' | sed '1d;$d' | tr '\n' ' ' | sed 's/  */ /g' | tr ' ' '\n' | grep -v "^graphviz$\|^texlive-" | tr '\n' ' ')
           echo "dependencies=$deps" >> $GITHUB_OUTPUT
           echo "Found dependencies to cache: $deps"
 
