@@ -166,14 +166,21 @@ jobs:
             base=$(basename "$f" .md)
             procfile="$WORKSPACE/$dir/${base}.processed.md"
             
+            # Check if processed file exists
+            if [ ! -f "$procfile" ]; then
+              echo "ERROR: Processed file not found: $procfile"
+              exit 1
+            fi
+            
             release_base=$(get_release_name "$f" basename_count)
             
-            # Generate HTML
-            (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures -o "${base}.html")
+            # Generate HTML (use absolute paths to avoid issues with special characters)
+            echo "Generating HTML from: $procfile"
+            (cd "$WORKSPACE/$dir" && pandoc "./${base}.processed.md" -f markdown-implicit_figures -o "./${base}.html")
             echo "Built $dir/${base}.html"
             
             # Create ZIP bundle with HTML and PlantUML PNGs
-            (cd "$WORKSPACE/$dir" && zip -r "$WORKSPACE/${release_base}-html.zip" "${base}.html" "${base}"-plantuml-*.png 2>/dev/null || zip "$WORKSPACE/${release_base}-html.zip" "${base}.html")
+            (cd "$WORKSPACE/$dir" && zip -r "$WORKSPACE/${release_base}-html.zip" "./${base}.html" "${base}"-plantuml-*.png 2>/dev/null || zip "$WORKSPACE/${release_base}-html.zip" "./${base}.html")
             echo "Created ${release_base}-html.zip for release"
             
             # Cleanup generated files
