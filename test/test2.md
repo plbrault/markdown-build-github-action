@@ -4,6 +4,8 @@
 
 On poursuit notre quête d'héritage et de polymophisme en ajoutant les concepts de surcharge de méthode et de méthode abstraite.
 
+6
+
 ## Parlons Hockey
 
 Nous avons des athlètes professionnels jouant au hockey. Ces athlètes peuvent être soit un joueur ou un gardien de but. Chaque athlète joue des parties, a un nom et un prénom, et obtient un *scores* qui représente son importance dans le jeu.
