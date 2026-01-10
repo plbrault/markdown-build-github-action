@@ -55,12 +55,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: plantuml.jar
-          key: plantuml-v1.2025.0
+          key: plantuml-v1.2026.0
 
       - name: Download PlantUML if not cached
         if: steps.changed.outputs.files != '' && steps.cache-plantuml.outputs.cache-hit != 'true'
         run: |
-          curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2025.0/plantuml-1.2025.0.jar
+          curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2026.0/plantuml-1.2026.0.jar
 
       - name: Pre-render PlantUML and convert changed Markdown files to PDF
         if: steps.changed.outputs.files != ''
@@ -106,7 +106,7 @@ jobs:
                   inside=0
                   # render UML to PNG
                   echo "Rendering PlantUML diagram $cnt for $f"
-                  java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
+                  GRAPHVIZ_DOT=$(which dot) java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
                   generated_png="${umlfile%.uml}.png"
                   if [ ! -f "$generated_png" ]; then
                     echo "ERROR: PlantUML did not generate $generated_png"
