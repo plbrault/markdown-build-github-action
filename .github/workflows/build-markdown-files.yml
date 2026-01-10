@@ -204,6 +204,12 @@ jobs:
             rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.png
           done < <(printf '%s\n' "$files")
 
+      - name: List files for release
+        if: steps.changed.outputs.files != ''
+        run: |
+          echo "Files in workspace root:"
+          ls -lh *.pdf *.zip 2>/dev/null || echo "No PDF or ZIP files found"
+
       - name: Create release with PDFs and HTML bundles
         if: steps.changed.outputs.files != ''
         id: create-release
@@ -218,7 +224,9 @@ jobs:
             
             ## Generated files:
             ${{ steps.changed.outputs.files }}
-          artifacts: "*.pdf *.zip"
+          artifacts: |
+            *.pdf
+            *.zip
           artifactContentType: application/octet-stream
           allowUpdates: true
           removeArtifacts: true
