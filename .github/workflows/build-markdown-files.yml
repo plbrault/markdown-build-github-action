@@ -174,7 +174,8 @@ jobs:
         with:
           script: |
             const files = `${{ steps.changed.outputs.files }}`.trim().split('\n').filter(f => f);
-            const releaseUrl = `${{ steps.create-release.outputs.html_url }}`;
+            const prNumber = ${{ github.event.pull_request.number }};
+            const repo = context.repo;
             
             // Identify conflicting basenames
             const basenameCounts = {};
@@ -188,7 +189,8 @@ jobs:
               const pdfName = basenameCounts[base] > 1 
                 ? f.replace('.md', '').replace(/\//g, '-') + '.pdf'
                 : base + '.pdf';
-              return `- [\`${f.replace('.md', '.pdf')}\`](${releaseUrl}/download/pr-${{ github.event.pull_request.number }}/${pdfName}) - ${f} (PDF)`;
+              const downloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${pdfName}`;
+              return `- [\`${f.replace('.md', '.pdf')}\`](${downloadUrl}) - ${f} (PDF)`;
             }).join('\n');
             
             const comment = `## 📄 Generated PDFs
