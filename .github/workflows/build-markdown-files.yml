@@ -56,7 +56,7 @@ jobs:
         run: |
           curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2025.0/plantuml-1.2025.0.jar
 
-      - name: Pre-render PlantUML and convert changed Markdown files to PDF
+      - name: Pre-render PlantUML diagrams
         if: steps.changed.outputs.files != ''
         shell: bash
         run: |
@@ -75,7 +75,6 @@ jobs:
             tmp=$(mktemp)
             cnt=0
             inside=0
-            pngs=()
             # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
             while IFS= read -r line; do
               if [ $inside -eq 0 ] && [[ "$line" =~ ^'```'plantuml ]]; then
@@ -99,7 +98,6 @@ jobs:
                   fi
                   echo "PlantUML generated: $generated_png"
                   ls -lh "$generated_png"
-                  pngs+=("$generated_png")
                   echo "![]($pngfile)" >> "$tmp"
                   continue
                 fi
@@ -110,18 +108,58 @@ jobs:
             done < <(cat "$f"; echo)
             procfile="$WORKSPACE/$dir/${base}.processed.md"
             mv "$tmp" "$procfile"
+          done < <(printf '%s\n' "$files")
+
+      - name: Generate PDF files
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.files }}"
+          WORKSPACE=$(pwd)
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            dir=$(dirname "$f")
+            base=$(basename "$f" .md)
             # Run pandoc from the markdown directory so relative image paths resolve
             (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures --pdf-engine=xelatex -V geometry:margin=2cm -V mainfont="Liberation Serif" -V monofont="Liberation Mono" -o "${base}.pdf")
             echo "Built $dir/${base}.pdf"
-            # remove generated .processed.md, .uml files and PNGs so they are not committed
-            rm -f "$procfile"
-            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
-            for p in "${pngs[@]}"; do
-              rm -f "$p"
-            done
           done < <(printf '%s\n' "$files")
 
-      - name: Commit and push generated PDFs
+      - name: Generate HTML files
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.files }}"
+          WORKSPACE=$(pwd)
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            dir=$(dirname "$f")
+            base=$(basename "$f" .md)
+            # Run pandoc from the markdown directory so relative image paths resolve
+            (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures -o "${base}.html")
+            echo "Built $dir/${base}.html"
+          done < <(printf '%s\n' "$files")
+
+      - name: Cleanup temporary files
+        if: steps.changed.outputs.files != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.files }}"
+          WORKSPACE=$(pwd)
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            dir=$(dirname "$f")
+            base=$(basename "$f" .md)
+            # Remove generated .processed.md, .uml files and PNGs so they are not committed
+            rm -f "$WORKSPACE/$dir/${base}.processed.md"
+            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
+            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.png
+          done < <(printf '%s\n' "$files")
+
+      - name: Commit and push generated PDFs and HTML files
         if: steps.changed.outputs.files != ''
         shell: bash
         env:
@@ -129,20 +167,21 @@ jobs:
         run: |
           set -euo pipefail
           files="${{ steps.changed.outputs.files }}"
-          pdfs=()
+          generated_files=()
           while IFS= read -r f; do
             [ -z "$f" ] && continue
-            pdfs+=("${f%.md}.pdf")
+            generated_files+=("${f%.md}.pdf")
+            generated_files+=("${f%.md}.html")
           done <<< "$files"
-          if [ ${#pdfs[@]} -eq 0 ]; then
-            echo "No PDFs to commit"
+          if [ ${#generated_files[@]} -eq 0 ]; then
+            echo "No files to commit"
             exit 0
           fi
           git --version
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Add generated PDFs
-          git add -- "${pdfs[@]}"
+          # Add generated PDFs and HTML files
+          git add -- "${generated_files[@]}"
           # Only commit if there are changes
           if git diff --staged --quiet; then
             echo "No changes to commit"
