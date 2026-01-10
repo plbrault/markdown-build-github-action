@@ -44,6 +44,22 @@ jobs:
           packages: pandoc default-jre curl
           version: 1.0
 
+      - name: Get dependencies for GraphViz and TeX Live
+        if: steps.changed.outputs.has_files == 'true'
+        id: get-deps
+        run: |
+          # Get dependencies including recommends (but exclude the main packages themselves)
+          deps=$(apt-cache depends --recurse --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances graphviz texlive-xetex texlive-fonts-recommended texlive-latex-recommended 2>/dev/null | grep -E '^\w' | sort -u | grep -v -E '^(graphviz|texlive)' | tr '\n' ' ')
+          echo "dependencies=$deps" >> $GITHUB_OUTPUT
+          echo "Found dependencies: $deps"
+
+      - name: Install common dependencies (cached)
+        if: steps.changed.outputs.has_files == 'true'
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: ${{ steps.get-deps.outputs.dependencies }}
+          version: 1.0
+
       - name: Install GraphViz (not cached)
         if: steps.changed.outputs.has_files == 'true'
         run: |
