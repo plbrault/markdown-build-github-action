@@ -119,6 +119,13 @@ jobs:
             # Run pandoc from the markdown directory so relative image paths resolve
             (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures --pdf-engine=xelatex -V geometry:margin=2cm -V mainfont="Liberation Serif" -V monofont="Liberation Mono" -o "${base}.pdf")
             echo "Built $dir/${base}.pdf"
+            
+            # Create a unique filename for the release by replacing / with -
+            release_pdf_name="${f%.md}"
+            release_pdf_name="${release_pdf_name//\//-}.pdf"
+            cp "$WORKSPACE/$dir/${base}.pdf" "$WORKSPACE/$release_pdf_name"
+            echo "Copied to $release_pdf_name for release"
+            
             # remove generated .processed.md, .uml files and PNGs so they are not committed
             rm -f "$procfile"
             rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
@@ -141,7 +148,7 @@ jobs:
             
             ## Generated PDFs:
             ${{ steps.changed.outputs.files }}
-          artifacts: "**/*.pdf"
+          artifacts: "*.pdf"
           artifactContentType: application/pdf
           allowUpdates: true
           removeArtifacts: true
@@ -154,7 +161,11 @@ jobs:
         with:
           script: |
             const files = `${{ steps.changed.outputs.files }}`.trim().split('\n').filter(f => f);
-            const pdfList = files.map(f => `- [\`${f.replace('.md', '.pdf')}\`](${{ steps.create-release.outputs.html_url }}) - ${f} (PDF)`).join('\n');
+            const releaseUrl = `${{ steps.create-release.outputs.html_url }}`;
+            const pdfList = files.map(f => {
+              const pdfName = f.replace('.md', '').replace(/\//g, '-') + '.pdf';
+              return `- [\`${f.replace('.md', '.pdf')}\`](${releaseUrl}/download/pr-${{ github.event.pull_request.number }}/${pdfName}) - ${f} (PDF)`;
+            }).join('\n');
             
             const comment = `## 📄 Generated PDFs
             
