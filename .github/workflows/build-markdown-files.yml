@@ -134,10 +134,17 @@ jobs:
             base=$(basename "$f" .md)
             procfile="$WORKSPACE/$dir/${base}.processed.md"
             
+            # Check if processed file exists
+            if [ ! -f "$procfile" ]; then
+              echo "ERROR: Processed file not found: $procfile"
+              exit 1
+            fi
+            
             release_base=$(get_release_name "$f" basename_count)
             
-            # Generate PDF
-            (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures --pdf-engine=xelatex -V geometry:margin=2cm -V mainfont="Liberation Serif" -V monofont="Liberation Mono" -o "${base}.pdf")
+            # Generate PDF (use absolute paths to avoid issues with special characters)
+            echo "Generating PDF from: $procfile"
+            (cd "$WORKSPACE/$dir" && pandoc "./${base}.processed.md" -f markdown-implicit_figures --pdf-engine=xelatex -V geometry:margin=2cm -V mainfont="Liberation Serif" -V monofont="Liberation Mono" -o "./${base}.pdf")
             echo "Built $dir/${base}.pdf"
             cp "$WORKSPACE/$dir/${base}.pdf" "$WORKSPACE/${release_base}.pdf"
             echo "Copied to ${release_base}.pdf for release"
