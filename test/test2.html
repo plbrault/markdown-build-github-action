@@ -1,0 +1,74 @@
+<h1 id="laboratoire-05-b">Laboratoire 05-B</h1>
+<h2 id="objectif">Objectif</h2>
+<p>On poursuit notre quête d’héritage et de polymophisme en ajoutant les concepts de surcharge de méthode et de méthode abstraite.</p>
+<p>6</p>
+<h2 id="parlons-hockey">Parlons Hockey</h2>
+<p>Nous avons des athlètes professionnels jouant au hockey. Ces athlètes peuvent être soit un joueur ou un gardien de but. Chaque athlète joue des parties, a un nom et un prénom, et obtient un <em>scores</em> qui représente son importance dans le jeu.</p>
+<p>Pour un gardien, le score se calcule suivant l’équation suivante, où <span class="math inline"><em>W</em></span> est le nombre de victoire, <span class="math inline"><em>L</em></span> est le nombre de défaites, <span class="math inline"><em>O</em><sub><em>t</em></sub></span> et le nombre de défaites en prolongation, <span class="math inline"><em>S</em><sub><em>a</em></sub></span> est le nombre de tirs reçus, <span class="math inline"><em>G</em><sub><em>a</em></sub></span> est le nombre de buts accordés.</p>
+<p><br /><span class="math display">$$
+S_g = (W - L) \times 5 + O_t + \frac{(S_a - G_a)}{10}
+$$</span><br /></p>
+<p>Pour un joueur, considérant que <span class="math inline"><em>G</em></span> est le nombre de buts, <span class="math inline"><em>A</em></span> est le nombre de passes, <span class="math inline"><em>S</em></span> le nombre de tir et <span class="math inline"><em>B</em></span> le nombre d’échappées:</p>
+<p><br /><span class="math display">$$
+S_p = G \times 2 + A + B + \frac{S}{10}
+$$</span><br /></p>
+<p>Voici un diagramme de classes représentant notre application:</p>
+<p><img src="test2-plantuml-1.png" /></p>
+<p>La méthode <code>plays</code> sans paramètre, définie dans la classe <code>Athlete</code>, doit incrémenter le nombre de parties jouées par l’athlète, tandis que les méthodes <code>plays</code> définies dans les classes filles doivent mettre à jour les autres attributs en fonction des paramètres reçus <strong>en plus d’appeler la méthode parente</strong>.</p>
+<p>Vous devez implémenter votre solution de manière à pouvoir exécuter le code suivant avec succès (à mettre dans votre <code>main</code>). N’oubliez pas de mettre les bons <em>include</em> et de définir les méthodes ou les fonctions manquantes.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="dt">int</span> main () {</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>    Goaltender price(<span class="st">&quot;Carey&quot;</span>, <span class="st">&quot;Price&quot;</span>);</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>    price.plays(<span class="kw">true</span>, <span class="kw">false</span>, <span class="dv">1</span>, <span class="dv">26</span>);</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>    price.plays(<span class="kw">true</span>, <span class="kw">false</span>, <span class="dv">0</span>, <span class="dv">22</span>);</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>    price.plays(<span class="kw">true</span>, <span class="kw">true</span>, <span class="dv">2</span>, <span class="dv">19</span>);</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a>    price.plays(<span class="kw">false</span>, <span class="kw">false</span>, <span class="dv">4</span>, <span class="dv">25</span>);</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a>    price.plays(<span class="kw">true</span>, <span class="kw">false</span>, <span class="dv">0</span>, <span class="dv">27</span>);</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true"></a>    price.plays(<span class="kw">true</span>, <span class="kw">false</span>, <span class="dv">3</span>, <span class="dv">26</span>);</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true"></a>    price.plays(<span class="kw">false</span>, <span class="kw">true</span>, <span class="dv">3</span>, <span class="dv">41</span>);</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true"></a>    price.plays(<span class="kw">true</span>, <span class="kw">false</span>, <span class="dv">1</span>, <span class="dv">16</span>);</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true"></a>    price.plays(<span class="kw">true</span>, <span class="kw">false</span>, <span class="dv">2</span>, <span class="dv">31</span>);</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true"></a>    price.plays(<span class="kw">true</span>, <span class="kw">false</span>, <span class="dv">4</span>, <span class="dv">32</span>);</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true"></a>    <span class="bu">std::</span>cout &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">24</span>) &lt;&lt; <span class="st">&quot;Nom&quot;</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Partie&quot;</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Vict.&quot;</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Déf.&quot;</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Pro.&quot;</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;V/P&quot;</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;BC&quot;</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;TC&quot;</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;B/T&quot;</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Scores&quot;</span> &lt;&lt; <span class="bu">std::</span>endl;</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true"></a>    <span class="bu">std::</span>cout &lt;&lt; price &lt;&lt; <span class="bu">std::</span>endl;</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true"></a></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true"></a></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true"></a>    Player crosby(<span class="st">&quot;Center&quot;</span>, <span class="st">&quot;Sydney&quot;</span>, <span class="st">&quot;Crosby&quot;</span>);</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true"></a>    crosby.plays(<span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">6</span>, <span class="dv">1</span>);</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true"></a>    crosby.plays(<span class="dv">0</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">0</span>);</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true"></a>    crosby.plays(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">0</span>);</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true"></a>    crosby.plays(<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">7</span>, <span class="dv">0</span>);</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true"></a>    crosby.plays(<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">4</span>, <span class="dv">2</span>);</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true"></a>    crosby.plays(<span class="dv">3</span>, <span class="dv">0</span>, <span class="dv">8</span>, <span class="dv">0</span>);</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true"></a>    crosby.plays(<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>);</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true"></a>    crosby.plays(<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">0</span>);</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true"></a>    crosby.plays(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">4</span>, <span class="dv">0</span>);</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true"></a>    crosby.plays(<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>);</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true"></a>    <span class="bu">std::</span>cout &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">24</span>) &lt;&lt; <span class="st">&quot;Nom&quot;</span></span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Partie&quot;</span></span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;But&quot;</span></span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Passe&quot;</span></span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Pts&quot;</span></span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Tir&quot;</span></span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Pré.&quot;</span></span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Échap.&quot;</span></span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true"></a>    &lt;&lt; <span class="bu">std::</span>setw(<span class="dv">8</span>) &lt;&lt; <span class="bu">std::</span>right &lt;&lt; <span class="st">&quot;Scores&quot;</span> &lt;&lt; <span class="bu">std::</span>endl;</span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true"></a>    <span class="bu">std::</span>cout &lt;&lt; crosby &lt;&lt; <span class="bu">std::</span>endl;</span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true"></a></span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true"></a>    <span class="cf">return</span> <span class="dv">0</span>;</span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true"></a>}</span></code></pre></div>
+<p>La sortie devrait ressembler à ceci:</p>
+<pre><code>                     Nom  Parties   Vict.   Déf.    Pro.     V/P      BC      TC     B/T  Scores
+             Carey Price      10       8       1       1   0.800      20     265   0.925      60
+                     Nom  Partie     But   Passe     Pts     Tir   Pré. Échap.  Scores
+           Sydney Crosby      10       6       8      14      40   0.150       3      27</code></pre>
