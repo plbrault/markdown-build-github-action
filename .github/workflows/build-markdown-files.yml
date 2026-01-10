@@ -44,31 +44,27 @@ jobs:
           packages: pandoc default-jre curl
           version: 1.0
 
-      - name: Get dependencies for GraphViz and TeX Live
+      - name: Get actual dependencies for GraphViz and TeX Live
         if: steps.changed.outputs.has_files == 'true'
         id: get-deps
         run: |
-          # Get dependencies including recommends (but exclude the main packages themselves)
-          deps=$(apt-cache depends --recurse --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances graphviz texlive-xetex texlive-fonts-recommended texlive-latex-recommended 2>/dev/null | grep -E '^\w' | sort -u | grep -v -E '^(graphviz|texlive)' | tr '\n' ' ')
+          sudo apt-get update
+          # Simulate installation to get the actual list of packages that would be installed
+          deps=$(sudo apt-get install --simulate graphviz texlive-xetex texlive-fonts-recommended texlive-latex-recommended 2>&1 | grep "^  " | grep -v "^  graphviz\|^  texlive" | tr '\n' ' ')
           echo "dependencies=$deps" >> $GITHUB_OUTPUT
-          echo "Found dependencies: $deps"
+          echo "Found dependencies to cache: $deps"
 
-      - name: Install common dependencies (cached)
-        if: steps.changed.outputs.has_files == 'true'
+      - name: Install dependencies (cached)
+        if: steps.changed.outputs.has_files == 'true' && steps.get-deps.outputs.dependencies != ''
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: ${{ steps.get-deps.outputs.dependencies }}
           version: 1.0
 
-      - name: Install GraphViz (not cached)
+      - name: Install GraphViz and TeX Live (not cached)
         if: steps.changed.outputs.has_files == 'true'
         run: |
-          sudo apt-get install -y graphviz
-
-      - name: Install TeX Live (not cached)
-        if: steps.changed.outputs.has_files == 'true'
-        run: |
-          sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-latex-recommended
+          sudo apt-get install -y graphviz texlive-xetex texlive-fonts-recommended texlive-latex-recommended
 
       - name: Restore PlantUML JAR if cache
         if: steps.changed.outputs.has_files == 'true'
