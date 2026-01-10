@@ -36,14 +36,14 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
-      - name: Cache APT packages
+      - name: Install APT dependencies
         if: steps.changed.outputs.files != ''
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
           version: 1.0
 
-      - name: Cache PlantUML JAR
+      - name: Restore PlantUML JAR from cache
         if: steps.changed.outputs.files != ''
         id: cache-plantuml
         uses: actions/cache@v4
@@ -51,7 +51,7 @@ jobs:
           path: plantuml.jar
           key: plantuml-v1.2025.0
 
-      - name: Download PlantUML
+      - name: Download PlantUML if not cached
         if: steps.changed.outputs.files != '' && steps.cache-plantuml.outputs.cache-hit != 'true'
         run: |
           curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2025.0/plantuml-1.2025.0.jar
