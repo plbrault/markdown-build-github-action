@@ -2,7 +2,7 @@
 
 ## Objectif
 
-On poursuit notre quête d'héritage et de polymophisme en ajoutant les concepts de surcharge de méthode et de méthode abstraite.
+On poursuit notre quête d'héritage et de polymophisme en ajoutant les concepts de surcharge de méthode et de méthode abstraite. 6
 
 6
 

@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build-markdown-files:
@@ -36,27 +37,37 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
-      - name: Install APT dependencies
+      - name: Install non-TeX dependencies (cached)
         if: steps.changed.outputs.files != ''
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: pandoc texlive-xetex texlive-fonts-recommended texlive-latex-recommended default-jre graphviz curl
+          packages: pandoc default-jre curl
           version: 1.0
 
-      - name: Restore PlantUML JAR from cache
+      - name: Install GraphViz (not cached)
+        if: steps.changed.outputs.files != ''
+        run: |
+          sudo apt-get install -y graphviz
+
+      - name: Install TeX Live (not cached)
+        if: steps.changed.outputs.files != ''
+        run: |
+          sudo apt-get install -y texlive-xetex texlive-fonts-recommended texlive-latex-recommended
+
+      - name: Restore PlantUML JAR if cache
         if: steps.changed.outputs.files != ''
         id: cache-plantuml
         uses: actions/cache@v4
         with:
           path: plantuml.jar
-          key: plantuml-v1.2025.0
+          key: plantuml-v1.2026.0
 
       - name: Download PlantUML if not cached
         if: steps.changed.outputs.files != '' && steps.cache-plantuml.outputs.cache-hit != 'true'
         run: |
-          curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2025.0/plantuml-1.2025.0.jar
+          curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2026.0/plantuml-1.2026.0.jar
 
-      - name: Pre-render PlantUML diagrams
+      - name: Pre-render PlantUML and convert changed Markdown files to PDF
         if: steps.changed.outputs.files != ''
         shell: bash
         run: |
@@ -67,6 +78,15 @@ jobs:
             exit 0
           fi
           WORKSPACE=$(pwd)
+          
+          # Identify conflicting basenames
+          declare -A basename_count
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            base=$(basename "$f" .md)
+            basename_count["$base"]=$((${basename_count["$base"]:-0} + 1))
+          done < <(printf '%s\n' "$files")
+          
           while IFS= read -r f; do
             [ -z "$f" ] && continue
             echo "Processing file: $f"
@@ -75,14 +95,14 @@ jobs:
             tmp=$(mktemp)
             cnt=0
             inside=0
+            pngs=()
             # Process file: extract plantuml blocks, write .uml files and replace blocks with image links
-            mkdir -p "$WORKSPACE/$dir/uml"
             while IFS= read -r line; do
               if [ $inside -eq 0 ] && [[ "$line" =~ ^'```'plantuml ]]; then
                 inside=1
                 cnt=$((cnt+1))
-                umlfile="$WORKSPACE/$dir/uml/${base}-plantuml-${cnt}.uml"
-                pngfile="uml/${base}-plantuml-${cnt}.png"
+                umlfile="$WORKSPACE/$dir/${base}-plantuml-${cnt}.uml"
+                pngfile="${base}-plantuml-${cnt}.png"
                 : > "$umlfile"
                 continue
               fi
@@ -91,7 +111,7 @@ jobs:
                   inside=0
                   # render UML to PNG
                   echo "Rendering PlantUML diagram $cnt for $f"
-                  java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
+                  GRAPHVIZ_DOT=$(which dot) java -jar "$WORKSPACE/plantuml.jar" -tpng "$umlfile"
                   generated_png="${umlfile%.uml}.png"
                   if [ ! -f "$generated_png" ]; then
                     echo "ERROR: PlantUML did not generate $generated_png"
@@ -99,6 +119,7 @@ jobs:
                   fi
                   echo "PlantUML generated: $generated_png"
                   ls -lh "$generated_png"
+                  pngs+=("$generated_png")
                   echo "![]($pngfile)" >> "$tmp"
                   continue
                 fi
@@ -109,90 +130,104 @@ jobs:
             done < <(cat "$f"; echo)
             procfile="$WORKSPACE/$dir/${base}.processed.md"
             mv "$tmp" "$procfile"
-          done < <(printf '%s\n' "$files")
-
-      - name: Generate PDF files
-        if: steps.changed.outputs.files != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          files="${{ steps.changed.outputs.files }}"
-          WORKSPACE=$(pwd)
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            dir=$(dirname "$f")
-            base=$(basename "$f" .md)
             # Run pandoc from the markdown directory so relative image paths resolve
             (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures --pdf-engine=xelatex -V geometry:margin=2cm -V mainfont="Liberation Serif" -V monofont="Liberation Mono" -o "${base}.pdf")
             echo "Built $dir/${base}.pdf"
-          done < <(printf '%s\n' "$files")
-
-      - name: Generate HTML files
-        if: steps.changed.outputs.files != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          files="${{ steps.changed.outputs.files }}"
-          WORKSPACE=$(pwd)
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            dir=$(dirname "$f")
-            base=$(basename "$f" .md)
-            # Run pandoc from the markdown directory so relative image paths resolve
+            
+            # Create filename for release - include path only if there's a conflict
+            if [ "${basename_count[$base]}" -gt 1 ]; then
+              release_pdf_name="${f%.md}"
+              release_pdf_name="${release_pdf_name//\//-}.pdf"
+            else
+              release_pdf_name="${base}.pdf"
+            fi
+            cp "$WORKSPACE/$dir/${base}.pdf" "$WORKSPACE/$release_pdf_name"
+            echo "Copied to $release_pdf_name for release"
+            
+            # Generate HTML
             (cd "$WORKSPACE/$dir" && pandoc "${base}.processed.md" -f markdown-implicit_figures -o "${base}.html")
             echo "Built $dir/${base}.html"
+            
+            # Bundle HTML and images into zip
+            if [ "${basename_count[$base]}" -gt 1 ]; then
+              release_zip_name="${f%.md}"
+              release_zip_name="${release_zip_name//\//-} (html).zip"
+            else
+              release_zip_name="${base} (html).zip"
+            fi
+            (cd "$WORKSPACE/$dir" && zip -r "$WORKSPACE/$release_zip_name" "${base}.html" "${base}"-plantuml-*.png 2>/dev/null || zip "$WORKSPACE/$release_zip_name" "${base}.html")
+            echo "Created $release_zip_name for release"
+            
+            # remove generated .processed.md, .uml files and PNGs so they are not committed
+            rm -f "$procfile"
+            rm -f "$WORKSPACE/$dir/${base}"-plantuml-*.uml
+            for p in "${pngs[@]}"; do
+              rm -f "$p"
+            done
           done < <(printf '%s\n' "$files")
 
-      - name: Cleanup temporary files
+      - name: Create release with PDFs
         if: steps.changed.outputs.files != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          files="${{ steps.changed.outputs.files }}"
-          WORKSPACE=$(pwd)
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            dir=$(dirname "$f")
-            base=$(basename "$f" .md)
-            # Remove temporary files (keep uml/ folder with PNGs)
-            rm -f "$WORKSPACE/$dir/${base}.processed.md"
-            rm -f "$WORKSPACE/$dir/uml/${base}"-plantuml-*.uml
-          done < <(printf '%s\n' "$files")
+        id: create-release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: pr-${{ github.event.pull_request.number }}
+          name: "Built Markdown files (#${{ github.event.pull_request.number }})"
+          body: |
+            Built Markdown files from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+            
+            Link to PR: ${{ github.event.pull_request.html_url }}
+            
+            ## Generated PDFs:
+            ${{ steps.changed.outputs.files }}
+          artifacts: "*.pdf *.zip"
+          artifactContentType: application/octet-stream
+          allowUpdates: true
+          removeArtifacts: true
+          prerelease: true
+          makeLatest: false
 
-      - name: Commit and push generated PDFs and HTML files
+      - name: Comment on PR with release link
         if: steps.changed.outputs.files != ''
-        shell: bash
-        env:
-          GITHUB_HEAD_REF: ${{ github.head_ref }}
-        run: |
-          set -euo pipefail
-          files="${{ steps.changed.outputs.files }}"
-          generated_files=()
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            generated_files+=("${f%.md}.pdf")
-            generated_files+=("${f%.md}.html")
-          done <<< "$files"
-          if [ ${#generated_files[@]} -eq 0 ]; then
-            echo "No files to commit"
-            exit 0
-          fi
-          git --version
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Add generated PDFs and HTML files
-          git add -- "${generated_files[@]}"
-          # Add all uml/ directories
-          git add -- '**/uml/' 2>/dev/null || true
-          # Only commit if there are changes
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "Build changed Markdown files"
-          # Push back to the PR branch
-          if [ -n "${GITHUB_HEAD_REF:-}" ]; then
-            git push origin HEAD:refs/heads/${GITHUB_HEAD_REF}
-          else
-            git push origin HEAD
-          fi
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = `${{ steps.changed.outputs.files }}`.trim().split('\n').filter(f => f);
+            const prNumber = ${{ github.event.pull_request.number }};
+            const repo = context.repo;
+            
+            // Identify conflicting basenames
+            const basenameCounts = {};
+            files.forEach(f => {
+              const base = f.split('/').pop().replace('.md', '');
+              basenameCounts[base] = (basenameCounts[base] || 0) + 1;
+            });
+            
+            const pdfList = files.map(f => {
+              const base = f.split('/').pop().replace('.md', '');
+              const pdfName = basenameCounts[base] > 1 
+                ? f.replace('.md', '').replace(/\//g, '-') + '.pdf'
+                : base + '.pdf';
+              const zipName = basenameCounts[base] > 1
+                ? f.replace('.md', '').replace(/\//g, '-') + ' (html).zip'
+                : base + ' (html).zip';
+              const pdfDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${pdfName}`;
+              const zipDownloadUrl = `https://github.com/${repo.owner}/${repo.repo}/releases/download/pr-${prNumber}/${encodeURIComponent(zipName)}`;
+              return `- ${f}\n  - [\`PDF\`](${pdfDownloadUrl})\n  - [\`HTML (zip)\`](${zipDownloadUrl})`;
+            }).join('\n');
+            
+            const comment = `## 📄 Files generated from Markdown
+            
+            The following files have been generated:
+            
+            ${pdfList}
+            
+            [View Release: Built Markdown files (#${{ github.event.pull_request.number }})](${{ steps.create-release.outputs.html_url }})`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
